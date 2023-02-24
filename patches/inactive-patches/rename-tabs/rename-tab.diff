@@ -1,0 +1,160 @@
+Ref. https://github.com/gch1p/tabbed-renametab-mod/compare/master...renametab
+
+diff --git a/tabbed/config.h b/tabbed.orig/config.h
+index 8b007b9..86bd85e 100644
+--- a/config.h
++++ b/config.h
+@@ -4,6 +4,8 @@
+ static const char font[]        = "Gohu GohuFont:size=9";
+ static const char* normbgcolor  = "#222222";
+ static const char* normfgcolor  = "#cccccc";
++static const char* winbgcolor   = "#000000";
++static const char* winfgcolor   = "#cccccc";
+ static const char* selbgcolor   = "#b2f66f";
+ static const char* selfgcolor   = "#222222";
+ static const char* urgbgcolor   = "#111111";
+@@ -39,9 +41,9 @@ static Bool npisrelative  = False;
+ #define ALT Mod1Mask
+ static Key keys[] = {
+ 	/* modifier	key        function     argument */
+-	{ CTRL,		XK_Return, drawbar,	{  } },
+ 	{ CTRL|SHIFT,	XK_Return, focusonce,   { 0 } },
+ 	{ CTRL|SHIFT,	XK_Return, spawn,       { 0 } },
++	{ CTRL|SHIFT,	XK_r,      renametab,   { 0 } },
+
+ 	{ CTRL|SHIFT,	XK_l,      rotate,      { .i = +1 } },
+ 	{ CTRL|SHIFT,	XK_h,      rotate,      { .i = -1 } },
+diff --git a/tabbed/tabbed.c b/tabbed.orig/tabbed.c
+index eafe28a..dd2c5c8 100644
+--- a/tabbed.c
++++ b/tabbed.c
+@@ -68,6 +68,7 @@ typedef struct {
+ 	XftColor norm[ColLast];
+ 	XftColor sel[ColLast];
+ 	XftColor urg[ColLast];
++	XftColor win[ColLast];
+ 	Drawable drawable;
+ 	GC gc;
+ 	struct {
+@@ -80,10 +81,12 @@ typedef struct {
+
+ typedef struct {
+ 	char name[256];
++	char title[256];
+ 	Window win;
+ 	int tabx;
+ 	Bool urgent;
+ 	Bool closed;
++	Bool titleset;
+ } Client;
+
+ /* function declarations */
+@@ -118,6 +121,9 @@ static void manage(Window win);
+ static void maprequest(const XEvent *e);
+ static void move(const Arg *arg);
+ static void movetab(const Arg *arg);
++static void renametab(const Arg *arg);
++static void settabtitle(const char *title, unsigned int size);
++static void unsettabtitle(const char *title, unsigned int size);
+ static void propertynotify(const XEvent *e);
+ static void resize(int c, int w, int h);
+ static void rotate(const Arg *arg);
+@@ -331,7 +337,7 @@ drawbar(void)
+ 		dc.x = 0;
+ 		dc.w = ww;
+ 		XFetchName(dpy, win, &name);
+-		drawtext(name ? name : "", dc.norm);
++		drawtext(name ? name : "", dc.win);
+ 		XCopyArea(dpy, dc.drawable, win, dc.gc, 0, 0, ww, bh, 0, 0);
+ 		XSync(dpy, False);
+
+@@ -367,7 +373,12 @@ drawbar(void)
+ 		} else {
+ 			col = clients[c]->urgent ? dc.urg : dc.norm;
+ 		}
+-		drawtext(clients[c]->name, col);
++
++		if (clients[c]->titleset) {
++			drawtext(clients[c]->title, col);
++		} else {
++			drawtext(clients[c]->name, col);
++		}
+ 		dc.x += dc.w;
+ 		clients[c]->tabx = dc.x;
+ 	}
+@@ -820,6 +831,57 @@ movetab(const Arg *arg)
+ 	drawbar();
+ }
+
++void
++renametab(const Arg *arg)
++{
++	if (nclients < 1)
++		return;
++
++	unsigned int bufsize = sizeof(clients[sel]->title);
++	char cmd[128];
++	char buf[bufsize];
++	memset(&buf[0], 0, sizeof(buf));
++
++	snprintf(cmd, sizeof(cmd), "echo -n \"\" | dmenu -p \"Enter title:\" -w 0x%lx", win);
++
++	FILE *fp;
++	if ((fp = popen(cmd, "r")) == NULL) {
++		printf("Error opening pipe!\n");
++		return;
++	}
++
++	fgets(buf, bufsize, fp);
++	buf[strcspn(buf, "\n")] = 0;
++
++	int rc = pclose(fp);
++	if (!rc) {
++		if (strlen(buf) > 0) {
++			settabtitle(buf, bufsize);
++		} else {
++			unsettabtitle(buf, bufsize);
++		}
++	}
++}
++
++void
++settabtitle(const char *title, unsigned int size)
++{
++	Client *c = clients[sel];
++	strncpy(c->title, title, size);
++	c->titleset = True;
++	drawbar();
++}
++
++void
++unsettabtitle(const char *title, unsigned int size)
++{
++	Client *c = clients[sel];
++	memset(&(c->title[0]), 0, size);
++	c->titleset = False;
++	drawbar();
++}
++
++
+ void
+ propertynotify(const XEvent *e)
+ {
+@@ -1032,6 +1094,8 @@ setup(void)
+
+ 	dc.norm[ColBG] = getcolor(normbgcolor);
+ 	dc.norm[ColFG] = getcolor(normfgcolor);
++	dc.win[ColBG] = getcolor(winbgcolor);
++	dc.win[ColFG] = getcolor(winfgcolor);
+ 	dc.sel[ColBG] = getcolor(selbgcolor);
+ 	dc.sel[ColFG] = getcolor(selfgcolor);
+ 	dc.urg[ColBG] = getcolor(urgbgcolor);
+@@ -1041,7 +1105,7 @@ setup(void)
+ 	dc.gc = XCreateGC(dpy, root, 0, 0);
+
+ 	win = XCreateSimpleWindow(dpy, root, wx, wy, ww, wh, 0,
+-	                          dc.norm[ColFG].pixel, dc.norm[ColBG].pixel);
++	                          dc.win[ColFG].pixel, dc.win[ColBG].pixel);
+ 	XMapRaised(dpy, win);
+ 	XSelectInput(dpy, win, SubstructureNotifyMask | FocusChangeMask |
+ 	             ButtonPressMask | ExposureMask | KeyPressMask |
