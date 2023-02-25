@@ -20,7 +20,7 @@ SRC = tabbed.c xembed.c
 OBJ = ${SRC:.c=.o}
 BIN = ${OBJ:.o=}
 MAN1 = ${BIN:=.1}
-HDR = arg.h config.def.h
+HDR = arg.h config.h
 DOC = LICENSE README
 
 all: ${BIN}
@@ -29,9 +29,6 @@ all: ${BIN}
 	${CC} -o $@ -c $< ${TABBED_CFLAGS} ${TABBED_CPPFLAGS}
 
 ${OBJ}: config.h
-
-config.h:
-	cp config.def.h $@
 
 .o:
 	${CC} -o $@ $< ${TABBED_LDFLAGS}
