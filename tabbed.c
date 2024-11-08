@@ -170,6 +170,7 @@ static int cmd_append_pos;
 static char winid[64];
 static char **cmd;
 static char *wmname = "tabbed";
+static char *classname = "tabbed";
 static pid_t nextpid;
 static const char *geometry;
 
@@ -1109,7 +1110,8 @@ setup(void)
 	xerrorxlib = XSetErrorHandler(xerror);
 
 	class_hint.res_name = wmname;
-	class_hint.res_class = "tabbed";
+	class_hint.res_class = classname;
+
 	XSetClassHint(dpy, win, &class_hint);
 
 	size_hint = XAllocSizeHints();
@@ -1351,6 +1353,9 @@ main(int argc, char *argv[])
 	case 'c':
 		closelastclient = True;
 		fillagain = False;
+		break;
+	case 'C':
+		classname = EARGF(usage());
 		break;
 	case 'd':
 		detach = True;
